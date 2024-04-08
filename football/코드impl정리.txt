@@ -1,0 +1,306 @@
+	[코드 설명]
+	1. CRUD 설명
+	2. 추가적인 설명
+----------------------------------------------------------------------------------------------
+	[INSERT] 선수 등록 (player DAOImpl)
+
+	public class PlayerDAOImpl implements PlayerDAO {      ➜ DAO: 인터페이스 구현 클래스. 
+
+	private Connection conn = DBConn.getConnection(); 
+
+	//선수등록
+	@Override
+	
+	public int insertplayer(PlayerDTO dto) throws SQLException {
+		int result = 0; 
+		
+		PreparedStatement pstmt = null; 
+									      
+		String sql; ➜ sql 쿼리를 저장할 변수 선언 
+
+		try {
+			conn.setAutoCommit(false); // +트랜잭션 추가 
+
+			1. sql(쿼리) 작성
+			sql = "INSERT INTO player (playerId, playerName, teamCode, position, uniformNum, birth, tall, playerNation )"
+				+ "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"; ➜ 인자에 들어가는 개수만큼 ?로 표시
+			
+			2. sql를 인자로 PreparedStatement 객체를 생성  
+			pstmt = conn.prepareStatement(sql); ➜ SQL 쿼리를 실행하기 위한 prepareStatement를 만듬.
+			
+		    3. setter를 이용하여 ? 에 값 할당
+			pstmt.setInt(1, dto.getplayerId()); ➜ dto에서 선수아이디를 가져오고 아이디가 NUMBER이기때문에, setInt로 pstmt에 저장합니다.
+			pstmt.setString(2, dto.getPlayerName());
+			pstmt.setString(3, dto.getTeamCode());
+			pstmt.setString(4, dto.getPosition());
+			pstmt.setInt(5, dto.getUniformNum());
+			pstmt.setString(6, dto.getBirth());
+			pstmt.setInt(7, dto.getTall());
+			pstmt.setString(8, dto.getPlayerNation());
+			
+			4. 쿼리를 실행한다.
+			result = pstmt.executeUpdate(); ➜ 쿼리를 실행하여 그 결과를 ResultSet에 저장.
+						
+			conn.commit();  // + COMMIT 하기
+
+		//예외처리	
+		} catch (SQLException e) { 
+		
+			DBUtil.rollback(conn); // + rollback 하기
+
+			throw e; // 예외를 던질 것.(UI에서 받음.) ( INSERT, UPDATE, DELETE할때 예외 던져줍니다.)
+			
+		} finally {
+			
+			5. 객체 close
+			DBUtil.close(pstmt);
+
+			try {
+				conn.setAutoCommit(true); // + 트랜잭션 정상으로 돌려 놓기 (false) => (true)
+			} catch (Exception e2) {
+			}
+		}
+		return result;
+	}
+---------------------------------------------------------------------------------------------------------------------
+	[UPDATE] 득점 수정(Soccer DAOImpl)
+	
+		public int updateScore(ScoreDTO dto) throws SQLException {
+		int result = 0;
+		PreparedStatement pstmt = null;
+		String sql;
+
+		try {
+			conn.setAutoCommit(false);  // + 트랜잭션 추가
+
+			sql = "UPDATE score SET scoreTime = ?, playerId = ?, matchNumber = ?" 
+				+ " WHERE scoreId = ?"; 		   ➜ soreId로 수정하기.
+
+			pstmt = conn.prepareStatement(sql);  ➜ SQL 쿼리를 실행하기 위한 prepareStatement를 만듬.
+			pstmt.setString(1, dto.getScoreTime());
+			pstmt.setInt(2, dto.getPlayerId());
+			pstmt.setInt(3, dto.getMatchNumber());
+			pstmt.setString(4, dto.getScoreId());
+			
+			result = pstmt.executeUpdate(); ➜ 쿼리를 실행하여 그 결과를 ResultSet에 저장.
+
+			conn.commit(); // + COMMIT 하기
+
+		} catch (SQLException e) {
+			try {
+				conn.rollback();  	// + rollback 하기
+			} catch (Exception e2) {
+			}
+			throw e;
+			
+		} finally {
+			
+			DBUtil.close(pstmt);  ➜ 객체 close
+			try {
+				conn.setAutoCommit(true); // + 트랜잭션 정상으로 돌려 놓기 (false) => (true)
+			} catch (Exception e2) {
+			}
+		}
+		return result;
+	}
+---------------------------------------------------------------------------------------------------------------------
+	[DELETE]  코멘트 삭제 (commnetsDAOImpl) - player 부분.
+
+	public class commentsDAOImpl_admin implements commentsDAO_admin {
+	private Connection conn = DBConn.getConnection();   ➜ DB호출 명령어
+
+	@Override
+	// 선수코멘트 삭제
+	
+	public int player_deletecomments(int commentNumber) throws SQLException {
+		int result = 0;
+		PreparedStatement pstmt = null;
+		String sql;
+
+		try {
+			1. 쿼리작성
+			sql = "DELETE FROM player_comments WHERE commentNumber = ? "; ➜ commentNumber로 삭제 
+
+			2. SQL 쿼리를 실행하기 위한 prepareStatement를 만듬.
+			pstmt = conn.prepareStatement(sql);
+
+			3. setter를 이용해 ?에 값 할당
+			pstmt.setInt(1, commentNumber);
+
+			4. 쿼리를 실행하여 그 결과를 ResultSet에 저장.
+			result = pstmt.executeUpdate(); 
+
+    // SQL예외
+		} catch (SQLException e) {
+			throw e;
+		} finally {
+			5. 객체닫기
+			DBUtil.close(pstmt);
+		}
+		return result;
+	}
+---------------------------------------------------------------------------------------------------------------------
+	[이름으로 검색]  team (TeamDAOImpl)
+
+	// 팀이름으로 검색.
+	@Override
+	public List<TeamDTO> listTeam(String teamName) {
+	
+		List<TeamDTO> list =new ArrayList<TeamDTO>(); ➜ TeamDTO 객체를 담을 수 있는 새로운 ArrayList 생성.
+		
+		PreparedStatement pstmt =null; 
+		ResultSet rs=null;  
+		String sql;
+		try {
+			sql="SELECT t1.teamCode,teamName,headcoach,captain,stadiumName,region"
+					+" FROM team t1" 
+					+" JOIN stadium s1 ON t1.teamCode=s1.teamCode" ➜ team과 stadium을 teamCode로 조인해서 stadiumName,region 정보 가져옴.
+					+" WHERE INSTR(teamName,?) >=1"; ➜ INSTR을 사용해서, 한글자만 입력해도 그 글자가 포함한 이름은 다 출력 됨. 
+			
+			pstmt=conn.prepareStatement(sql); ➜ SQL 쿼리를 실행하기 위한 prepareStatement를 만듬.
+			
+			pstmt.setString(1, teamName);
+			
+			rs=pstmt.executeQuery(); ➜ 쿼리를 실행하여 그 결과를 ResultSet에 저장.
+			
+			while(rs.next()) { ➜ 마우스 커서를 1-2-3차례대로 내려가면서 데이터가 있는지에 결과물을 보기위해서는 rs.next()이용해서 한다.
+			
+				TeamDTO dto = new TeamDTO();
+				
+				dto.setTeamCode(rs.getString("teamCode"));
+				dto.setTeamName(rs.getString("teamName"));
+				dto.setHeadcoach(rs.getString("headcoach"));
+				dto.setCaptain(rs.getString("captain"));
+				dto.setStadiumName(rs.getString("stadiumName"));
+				dto.setRegion(rs.getString("region"));
+				
+				list.add(dto);➜  ArrayList에 담기. 
+			}
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}finally {
+			DBUtil.close(rs);
+			DBUtil.close(pstmt);
+		}
+		return list;
+	}
+	
+---------------------------------------------------------------------------------------------------------------------
+[LIST] // 득점순위리스트 (Soccer DAOImpl)
+
+	public List<ScoreDTO> rankList() { // ScoreDTO 객체의 LIST을 반환
+		List<ScoreDTO> list = new ArrayList<>(); ➜ ScoreDTO 객체의  ArrayList list을 생성
+		PreparedStatement pstmt = null; ➜  변수 초기화 
+		ResultSet rs = null;  			➜  변수 초기화 
+		String sql; 					➜ sql 쿼리를 저장할 변수 선언 
+		
+		★ RANK() OVER(ORDER BY COUNT(*) DESC) AS rank
+	 	=> RANK OVER을 사용해서 rank (순위)를 구하는 구문이며
+		   ORDER BY 사용하여 COUNT(*) 득점전체를 내림차순으로 정렬.
+		
+		try {
+			sql = "SELECT RANK() OVER(ORDER BY COUNT(*) DESC) AS rank, " 
+					+ " p.playerId, playerName, t.teamCode, teamName, COUNT(*) AS goals"
+					+ " FROM score s" 				
+					+ " JOIN player p ON s.playerId = p.playerId "
+					+ " JOIN team t ON p.teamCode = t.teamCode " 
+					+ " GROUP BY p.playerId, playerName, t.teamCode, teamName" 
+					+ " ORDER BY rank, playerName";
+						
+						➜ score 테이블과 player테이블 team테이블을 조인했고, 
+						  그리고 이 것을, rank, player 이름으로 오름차순 정렬을 했습니다.
+
+			pstmt = conn.prepareStatement(sql); ➜ SQL 쿼리를 실행하기 위한 prepareStatement를 만들고 
+			rs = pstmt.executeQuery(); ➜ 실행하여 결과를 ResultSet에 저장.
+
+			while (rs.next()) {
+				ScoreDTO dto = new ScoreDTO(); ➜ 새로운 객체 ScoreDTO를 생성.
+
+				dto.setRank(rs.getInt("rank"));
+				dto.setPlayerId(rs.getInt("playerId"));
+				dto.setPlayerName(rs.getString("playerName"));
+				dto.setTeamCode(rs.getString("teamCode"));
+				dto.setTeamName(rs.getString("teamName"));
+				dto.setGoals(rs.getInt("goals")); ➜ ResultSet으로부터 가져온 데이터를 ScoreDTO객체에 넣어준다.
+
+				list.add(dto); ➜ ScoreDTO 객체를 list에 추가.
+			}
+
+		} catch (SQLException e) {
+			e.printStackTrace();
+		} finally {
+			DBUtil.close(rs);   
+			DBUtil.close(pstmt);  ➜ ResultSet, prepareStatement 를 닫는다.
+		}
+
+		return list;  ➜ ScoreDTO 객체의 목록을 반환.
+	}
+}
+--------------------------------------------------------------------------------------------------
+						★ Map 사용 => 기본형: Map<String, Integer> myMap = new HashMap<>(); =>문자열, 값은 정수인 HashMap 생성
+[LIST] // 팀순위 리스트 (MatchSchedul DAO)
+
+   	   // 팀 점수를 입력받아 승점을 구하는 메서드, 승점을 구한후 승점이 높은 팀별로 차순 정렬
+	public List<Map.Entry<String, Integer>> Ranking() {
+	
+	 Map<String, Integer> teamPoint = new HashMap<>();  // 팀,점수 형식으로 해쉬맵을 생성 ➜ sort정렬을 하기위해 hashmap으로 생성
+		
+	    PreparedStatement pstmt = null;
+	    ResultSet rs = null;
+	    String sql;
+
+	    try {
+	       
+	        sql = "SELECT matchdate, t.teamname as hometeam, homescore, t2.teamname as awayteam, awayscore "
+	                + " FROM match m " 
+	                + " JOIN team t ON m.tcode = t.teamcode "
+	                + " JOIN team t2 ON m.tcode2 = t2.teamcode " + " WHERE homescore IS NOT NULL " 
+	                								➜ 승점을 구하기 위해서는 이미 끝난 경기들만 봐야하므로 is not null을 통해,이미 끝난 경기만 불러옴
+	                + " ORDER BY matchdate ASC";
+	               	                	                
+	        pstmt = conn.prepareStatement(sql);
+	        rs = pstmt.executeQuery();
+ 
+	        while (rs.next()) {
+	        
+	            String homeTeamName = rs.getString("hometeam");
+	            String awayTeamName = rs.getString("awayteam");
+	            int homeScore = rs.getInt("homescore");
+	            int awayScore = rs.getInt("awayscore");
+	            
+	             //승점을 구하기 위한 updatePoints 실행
+	            updatePoints(teamPoint, homeTeamName, homeScore, awayScore);
+	             //원정팀이 이겼을 수도 있으니까 한번 더 실행
+	            updatePoints(teamPoint, awayTeamName, awayScore, homeScore);
+	        }
+
+	    } catch (Exception e) {
+	        e.printStackTrace();
+	        
+	    } finally {
+	        DBUtil.close(rs);
+	        DBUtil.close(pstmt);
+	    }
+		// sort => 높은점수부터 출력하기 위해서 sort 정렬.
+	    List<Map.Entry<String, Integer>> sortedTeamPointsList = new ArrayList<>(teamPoint.entrySet());
+	    sortedTeamPointsList.sort(Map.Entry.comparingByValue(Comparator.reverseOrder()));
+
+	    return sortedTeamPointsList;
+	}
+	
+	➜ 연산이 들어가는 부분은 자바로 하는게 속도가 빠르기때문에, 자바가 오라클로 승점을 넣는 것보다 더 좋다.
+--------------------------------------------------
+★ 승점계산 방식 (MatchSchedul DAO)
+
+	private void updatePoints(Map<String, Integer> teamPoint, String teamName, int homescore, int awayscore) {  
+ 	➜ 승점을 구하는 메소드
+
+    int points = teamPoint.getOrDefault(teamName, 0); ➜ 디폴트 설정 0점으로
+    if (homescore > awayscore) {  ➜ 이기면 3점 비기면 1점 적립
+	points += 3;  
+     } else if (homescore == awayscore) {
+	points += 1; 
+     }
+       teamPoint.put(teamName, points); ➜ 저장된 map에 팀 이름과 승점을 넣어놓음
+     }
+---------------------------------------------------------------------------------------------------
